@@ -1,5 +1,4 @@
 const saltRounds = 10;
-const { JsonWebTokenError } = require('jsonwebtoken');
 const jwt = require('jsonwebtoken');
 const Sequelize = require('sequelize');
 const bcrypt = require('bcrypt');
@@ -17,6 +16,13 @@ const User = conn.define('user', {
   username: STRING,
   password: STRING,
 });
+
+const Note = conn.define('note', {
+  text: STRING,
+});
+
+User.hasMany(Note)
+Note.belongsTo(User)
 
 User.addHook('beforeCreate', async (user) => {
     const hash = await bcrypt.hash(user.password, saltRounds)
@@ -52,8 +58,8 @@ User.authenticate = async({ username, password })=> {
         const match = await bcrypt.compare(password, user.password);
         if(match){
             const token = jwt.sign({id: user.id}, process.env.JWT);
-            return token; 
-        }   
+            return token;
+        }
     }
   const error = Error('bad credentials');
   error.status = 401;
@@ -68,14 +74,30 @@ const syncAndSeed = async()=> {
     { username: 'moe', password: 'moe_pw'},
     { username: 'larry', password: 'larry_pw'}
   ];
+
   const [lucy, moe, larry] = await Promise.all(
     credentials.map( credential => User.create(credential))
-  );
+    );
+
+  const notes = [
+    {text: 'lucys note', userId: lucy.id}, {text: 'moes note', userId: moe.id}, {text: 'larrys note', userId: larry.id}, {text: 'moe note 2', userId: moe.id}
+  ]
+
+  const [lucyNote, moeNote, larryNote, moeNote2] = await Promise.all(
+    notes.map( note =>  Note.create(note))
+  )
+
   return {
     users: {
       lucy,
       moe,
       larry
+    },
+    notes: {
+      lucyNote,
+      moeNote,
+      larryNote,
+      moeNote2
     }
   };
 };
@@ -83,7 +105,7 @@ const syncAndSeed = async()=> {
 module.exports = {
   syncAndSeed,
   models: {
-    User
+    User, Note
   }
 };
 
@@ -136,7 +158,7 @@ User.authenticate = async({ username, password })=> {
     if(user){
         const token = jwt.sign({id: user.id}, "somekeyhere")
         console.log(token);
-        return user.id; 
+        return user.id;
     }
     const error = Error('bad credentials');
     error.status = 401;
